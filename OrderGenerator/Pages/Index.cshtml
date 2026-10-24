@@ -1,0 +1,101 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Nova ordem";
+}
+
+<h1>Nova ordem</h1>
+
+<form id="order-form">
+    <p>
+        <label for="simbolo">Símbolo:</label>
+        <select id="simbolo" name="simbolo" required>
+            <option value="PETR4">PETR4 - Petrobras</option>
+            <option value="VALE3">VALE3 - Vale</option>
+            <option value="VIIA4">VIIA4 - ViaVarejo</option>
+        </select>
+    </p>
+
+    <fieldset>
+        <legend>Lado:</legend>
+        <label><input type="radio" name="tipoOrdem" value="1" checked> Compra</label>
+        <label><input type="radio" name="tipoOrdem" value="2"> Venda</label>
+    </fieldset>
+
+    <p>
+        <label for="quantidade">Quantidade (inteiro entre 1 e 99.999):</label>
+        <input id="quantidade" name="quantidade" type="number" min="1" max="99999" step="1" required>
+    </p>
+
+    <p>
+        <label for="preco">Preço (múltiplo de R$ 0,01 e menor que R$ 1.000):</label>
+        <input id="preco" name="preco" type="number" min="0.01" max="999.99" step="0.01" required>
+    </p>
+
+    <button id="submit-button" type="submit">Enviar ordem</button>
+</form>
+
+<section id="response" aria-live="polite" hidden>
+    <h2 id="response-title">Resposta da requisicao</h2>
+    <p id="response-message"></p>
+    <details>
+        <summary>Ver resposta completa</summary>
+        <pre id="response-body"></pre>
+    </details>
+</section>
+
+@section Scripts {
+<script>
+    (() => {
+        const form = document.getElementById('order-form');
+        const quantidade = document.getElementById('quantidade');
+        const preco = document.getElementById('preco');
+        const button = document.getElementById('submit-button');
+        const response = document.getElementById('response');
+        const apiUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.OrderApiUrl));
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!form.reportValidity()) return;
+
+            const quantidadeVal = Number(quantidade.value);
+            const precoVal = Number(preco.value);            
+
+            button.disabled = true;
+            button.textContent = 'Enviando...';
+
+            try {
+                const result = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        simbolo: document.getElementById('simbolo').value,
+                        tipoOrdem: Number(form.elements.tipoOrdem.value),
+                        quantidade: quantidadeVal,
+                        preco: precoVal
+                    })
+                });
+                const rawBody = await result.text();
+                let data;
+                try { data = JSON.parse(rawBody); } catch { data = null; }
+
+                const accepted = result.ok && data?.accepted === true;
+                response.hidden = false;
+                document.getElementById('response-title').textContent = accepted ? 'Ordem aceita' : 'Ordem rejeitada ou com erro';
+                document.getElementById('response-message').textContent =
+                    data?.message || data?.error || ('Resposta HTTP ' + result.status + '.');
+                document.getElementById('response-body').textContent =
+                    data ? JSON.stringify(data, null, 2) : (rawBody || '(sem conteudo)');
+            } catch (error) {
+                response.hidden = false;
+                document.getElementById('response-title').textContent = 'Falha na requisicao';
+                document.getElementById('response-message').textContent = error.message;
+                document.getElementById('response-body').textContent = error.message;
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Enviar ordem';
+            }
+        });
+    })();
+</script>
+}
